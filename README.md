@@ -16,7 +16,7 @@ Package jpath provides a query language for selecting elements from an JSON data
 }
 ```
 
-| Query                | Result                       |
+| Expression           | Result                       |
 |----------------------|------------------------------|
 | .arranged            | alphabetically               |
 | .companies[:].name   | apple facebook github google |

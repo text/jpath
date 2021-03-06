@@ -8,7 +8,7 @@ import (
 	"github.com/text/jpath"
 )
 
-func Example() {
+func ExampleEvaluate() {
 	const json = `{
 	"arranged": "alphabetically",
 	"companies": [
@@ -18,22 +18,22 @@ func Example() {
 		{"name": "google"}
 ]}`
 	r := func() io.Reader { return strings.NewReader(json) }
-	ch, _ := jpath.Fetch(r(), ".arranged")
+	ch, _ := jpath.Evaluate(".arranged", r())
 	for v := range ch {
 		fmt.Println(v.Value)
 	}
 	fmt.Println("--")
-	ch, _ = jpath.Fetch(r(), ".companies[:].name")
+	ch, _ = jpath.Evaluate(".companies[:].name", r())
 	for v := range ch {
 		fmt.Println(v.Value)
 	}
 	fmt.Println("--")
-	ch, _ = jpath.Fetch(r(), ".companies[1:3].name")
+	ch, _ = jpath.Evaluate(".companies[1:3].name", r())
 	for v := range ch {
 		fmt.Println(v.Value)
 	}
 	fmt.Println("--")
-	ch, _ = jpath.Fetch(r(), ".companies[^2].name")
+	ch, _ = jpath.Evaluate(".companies[^2].name", r())
 	for v := range ch {
 		fmt.Println(v.Value)
 	}

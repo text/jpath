@@ -19,19 +19,19 @@ var (
 	}
 )
 
-func Fetch(r io.Reader, query string) (<-chan struct {
+func Evaluate(expression string, r io.Reader) (<-chan struct {
 	Value interface{}
 	Error error
 }, error) {
 	pre := strings.NewReader(`{"root":`)
 	suf := strings.NewReader(`}`)
 	dec := json.NewDecoder(io.MultiReader(pre, r, suf))
-	m := make(map[string]interface{})
-	if err := dec.Decode(&m); err != nil && err != io.EOF {
+	context := make(map[string]interface{})
+	if err := dec.Decode(&context); err != nil && err != io.EOF {
 		return nil, err
 	}
 	omitFirstEmpty := func() []string {
-		a := strings.Split(query, ".")
+		a := strings.Split(expression, ".")
 		if a[0] == "" {
 			return a[1:]
 		}
@@ -42,28 +42,28 @@ func Fetch(r io.Reader, query string) (<-chan struct {
 		Error error
 	})
 	go func() {
-		fetch(m["root"], omitFirstEmpty(), ch)
+		evaluate(omitFirstEmpty(), context["root"], ch)
 		close(ch)
 	}()
 	return ch, nil
 }
 
-func fetch(m interface{}, query []string, ch chan<- struct {
+func evaluate(expression []string, context interface{}, ch chan<- struct {
 	Value interface{}
 	Error error
 }) {
-	l := len(query)
+	l := len(expression)
 	if l == 0 {
 		ch <- struct {
 			Value interface{}
 			Error error
-		}{m, nil}
+		}{context, nil}
 		return
 	}
-	switch x := m.(type) {
+	switch x := context.(type) {
 	case map[string]interface{}:
-		name, square := takeSquareBracket(query[0])
-		n, ok := x[name]
+		name, square := takeSquareBracket(expression[0])
+		nextContext, ok := x[name]
 		if !ok {
 			ch <- struct {
 				Value interface{}
@@ -72,22 +72,22 @@ func fetch(m interface{}, query []string, ch chan<- struct {
 			return
 		}
 		if square == "" {
-			fetch(n, query[1:], ch)
+			evaluate(expression[1:], nextContext, ch)
 			return
 		}
-		query[0] = square
-		fetch(n, query, ch)
+		expression[0] = square
+		evaluate(expression, nextContext, ch)
 	case []interface{}:
-		low, high, err := slice(x, query[0])
+		low, high, err := slice(x, expression[0])
 		if err != nil {
 			ch <- struct {
 				Value interface{}
 				Error error
 			}{nil, err}
 		}
-		nq := query[1:]
-		for _, n := range x[low:high] {
-			fetch(n, nq, ch)
+		nextExpression := expression[1:]
+		for _, nextContext := range x[low:high] {
+			evaluate(nextExpression, nextContext, ch)
 		}
 	case string:
 		if l != 0 {

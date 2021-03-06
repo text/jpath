@@ -19,20 +19,20 @@ type Output struct {
 func TestErrOutOfRange(t *testing.T) {
 	for _, tc := range []struct {
 		in           string
-		query        string
+		expression   string
 		expectOutput []Output
 		expectError  error
 	}{
 		{`["foo"]`, "[1]", errOut(jpath.ErrOutOfRange("[1]", 1)), nil},
 	} {
 		r := strings.NewReader(tc.in)
-		ch, err := jpath.Fetch(r, tc.query)
+		ch, err := jpath.Evaluate(tc.expression, r)
 		if errorString(err) != errorString(tc.expectError) {
-			t.Errorf("%q expected error to be %v but got %v", tc.query, tc.expectError, err)
+			t.Errorf("%q expected error to be %v but got %v", tc.expression, tc.expectError, err)
 		}
 		actual := readAll(ch)
 		if !reflect.DeepEqual(actual, tc.expectOutput) {
-			t.Errorf("%q expected value to be %v but got %v", tc.query, tc.expectOutput, actual)
+			t.Errorf("%q expected value to be %v but got %v", tc.expression, tc.expectOutput, actual)
 		}
 	}
 }
@@ -49,7 +49,7 @@ func TestErrParse(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		in           string
-		query        string
+		expression   string
 		expectOutput []Output
 		expectError  error
 	}{
@@ -59,13 +59,13 @@ func TestErrParse(t *testing.T) {
 		{"}", "[1]", nil, parseDecodeError("}")},
 	} {
 		r := strings.NewReader(tc.in)
-		ch, err := jpath.Fetch(r, tc.query)
+		ch, err := jpath.Evaluate(tc.expression, r)
 		if errorString(err) != errorString(tc.expectError) {
-			t.Errorf("%q expected error to be %v but got %v", tc.query, tc.expectError, err)
+			t.Errorf("%q expected error to be %v but got %v", tc.expression, tc.expectError, err)
 		}
 		actual := readAll(ch)
 		if !reflect.DeepEqual(actual, tc.expectOutput) {
-			t.Errorf("%q expected value to be %v but got %v", tc.query, tc.expectOutput, actual)
+			t.Errorf("%q expected value to be %v but got %v", tc.expression, tc.expectOutput, actual)
 		}
 	}
 }
@@ -73,20 +73,20 @@ func TestErrParse(t *testing.T) {
 func TestFetchNested(t *testing.T) {
 	for _, tc := range []struct {
 		in           string
-		query        string
+		expression   string
 		expectOutput []Output
 		expectError  error
 	}{
 		{`{"arr":[{"text": "foo"}, {"text": "bar"}]}`, ".arr[0].text", okOut("foo"), nil},
 	} {
 		r := strings.NewReader(tc.in)
-		ch, err := jpath.Fetch(r, tc.query)
+		ch, err := jpath.Evaluate(tc.expression, r)
 		if errorString(err) != errorString(tc.expectError) {
-			t.Errorf("%q expected error to be %v but got %v", tc.query, tc.expectError, err)
+			t.Errorf("%q expected error to be %v but got %v", tc.expression, tc.expectError, err)
 		}
 		actual := readAll(ch)
 		if !reflect.DeepEqual(actual, tc.expectOutput) {
-			t.Errorf("%q expected value to be %v but got %v", tc.query, tc.expectOutput, actual)
+			t.Errorf("%q expected value to be %v but got %v", tc.expression, tc.expectOutput, actual)
 		}
 	}
 }
@@ -95,7 +95,7 @@ func TestFetch(t *testing.T) {
 	t.Run("array", func(t *testing.T) {
 		for _, tc := range []struct {
 			in           string
-			query        string
+			expression   string
 			expectOutput []Output
 			expectError  error
 		}{
@@ -106,40 +106,40 @@ func TestFetch(t *testing.T) {
 			{`[{"text": "foo"}, {"text": "bar"}, {"text": "baz"}]`, "[^2].text", okOut("bar"), nil},
 		} {
 			r := strings.NewReader(tc.in)
-			ch, err := jpath.Fetch(r, tc.query)
+			ch, err := jpath.Evaluate(tc.expression, r)
 			if errorString(err) != errorString(tc.expectError) {
-				t.Errorf("%q expected error to be %v but got %v", tc.query, tc.expectError, err)
+				t.Errorf("%q expected error to be %v but got %v", tc.expression, tc.expectError, err)
 			}
 			actual := readAll(ch)
 			if !reflect.DeepEqual(actual, tc.expectOutput) {
-				t.Errorf("%q expected value to be %v but got %v", tc.query, tc.expectOutput, actual)
+				t.Errorf("%q expected value to be %v but got %v", tc.expression, tc.expectOutput, actual)
 			}
 		}
 	})
 	t.Run("slice", func(t *testing.T) {
 		for _, tc := range []struct {
 			in           string
-			query        string
+			expression   string
 			expectOutput []Output
 			expectError  error
 		}{
 			{`["foo", "bar", "baz", "pub"]`, "[1:3]", okOut("bar", "baz"), nil},
 		} {
 			r := strings.NewReader(tc.in)
-			ch, err := jpath.Fetch(r, tc.query)
+			ch, err := jpath.Evaluate(tc.expression, r)
 			if errorString(err) != errorString(tc.expectError) {
-				t.Errorf("%q expected error to be %v but got %v", tc.query, tc.expectError, err)
+				t.Errorf("%q expected error to be %v but got %v", tc.expression, tc.expectError, err)
 			}
 			actual := readAll(ch)
 			if !reflect.DeepEqual(actual, tc.expectOutput) {
-				t.Errorf("%q expected value to be %v but got %v", tc.query, tc.expectOutput, actual)
+				t.Errorf("%q expected value to be %v but got %v", tc.expression, tc.expectOutput, actual)
 			}
 		}
 	})
 	t.Run("root", func(t *testing.T) {
 		for _, tc := range []struct {
 			in           string
-			query        string
+			expression   string
 			expectOutput []Output
 			expectError  error
 		}{
@@ -150,13 +150,13 @@ func TestFetch(t *testing.T) {
 			{`{"text": "bar"}`, ".text.name", errOut(jpath.ErrNotFound), nil},
 		} {
 			r := strings.NewReader(tc.in)
-			ch, err := jpath.Fetch(r, tc.query)
+			ch, err := jpath.Evaluate(tc.expression, r)
 			if errorString(err) != errorString(tc.expectError) {
-				t.Errorf("%q expected error to be %v but got %v", tc.query, tc.expectError, err)
+				t.Errorf("%q expected error to be %v but got %v", tc.expression, tc.expectError, err)
 			}
 			actual := readAll(ch)
 			if !reflect.DeepEqual(actual, tc.expectOutput) {
-				t.Errorf("%q expected value to be %v but got %v", tc.query, tc.expectOutput, actual)
+				t.Errorf("%q expected value to be %v but got %v", tc.expression, tc.expectOutput, actual)
 			}
 		}
 	})
@@ -165,20 +165,20 @@ func TestFetch(t *testing.T) {
 func TestErrNotFound(t *testing.T) {
 	for _, tc := range []struct {
 		in           string
-		query        string
+		expression   string
 		expectOutput []Output
 		expectError  error
 	}{
 		{`{"text": "bar"}`, ".text.name", errOut(jpath.ErrNotFound), nil},
 	} {
 		r := strings.NewReader(tc.in)
-		ch, err := jpath.Fetch(r, tc.query)
+		ch, err := jpath.Evaluate(tc.expression, r)
 		if errorString(err) != errorString(tc.expectError) {
-			t.Errorf("%q expected error to be %v but got %v", tc.query, tc.expectError, err)
+			t.Errorf("%q expected error to be %v but got %v", tc.expression, tc.expectError, err)
 		}
 		actual := readAll(ch)
 		if !reflect.DeepEqual(actual, tc.expectOutput) {
-			t.Errorf("%q expected value to be %v but got %v", tc.query, tc.expectOutput, actual)
+			t.Errorf("%q expected value to be %v but got %v", tc.expression, tc.expectOutput, actual)
 		}
 	}
 }
