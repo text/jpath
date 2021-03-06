@@ -11,11 +11,15 @@ import (
 
 var (
 	ErrNotFound   = errors.New("not found")
-	ErrFoundOther = func(x interface{}) error { return fmt.Errorf("found other type: %T", x) }
-	ErrOutOfRange = errors.New("out of range")
+	ErrOutOfRange = func(square string, length int) error {
+		return fmt.Errorf("index out of range %s with length %d", square, length)
+	}
+	ErrParse = func(square string, err error) error {
+		return fmt.Errorf("could not parse %s: %w", square, err)
+	}
 )
 
-func Fetch(r io.Reader, path string) (<-chan struct {
+func Fetch(r io.Reader, query string) (<-chan struct {
 	Value interface{}
 	Error error
 }, error) {
@@ -27,7 +31,7 @@ func Fetch(r io.Reader, path string) (<-chan struct {
 		return nil, err
 	}
 	omitFirstEmpty := func() []string {
-		a := strings.Split(path, ".")
+		a := strings.Split(query, ".")
 		if a[0] == "" {
 			return a[1:]
 		}
@@ -44,21 +48,21 @@ func Fetch(r io.Reader, path string) (<-chan struct {
 	return ch, nil
 }
 
-func fetch(m interface{}, path []string, ch chan<- struct {
+func fetch(m interface{}, query []string, ch chan<- struct {
 	Value interface{}
 	Error error
 }) {
-	l := len(path)
+	l := len(query)
+	if l == 0 {
+		ch <- struct {
+			Value interface{}
+			Error error
+		}{m, nil}
+		return
+	}
 	switch x := m.(type) {
 	case map[string]interface{}:
-		if l == 0 {
-			ch <- struct {
-				Value interface{}
-				Error error
-			}{nil, ErrFoundOther(x)}
-			return
-		}
-		name, square := takeSquareBracket(path[0])
+		name, square := takeSquareBracket(query[0])
 		n, ok := x[name]
 		if !ok {
 			ch <- struct {
@@ -68,26 +72,22 @@ func fetch(m interface{}, path []string, ch chan<- struct {
 			return
 		}
 		if square == "" {
-			fetch(n, path[1:], ch)
+			fetch(n, query[1:], ch)
 			return
 		}
-		path[0] = square
-		fetch(n, path, ch)
+		query[0] = square
+		fetch(n, query, ch)
 	case []interface{}:
-		i, ok := index(x, path[0])
-		if !ok {
+		low, high, err := slice(x, query[0])
+		if err != nil {
 			ch <- struct {
 				Value interface{}
 				Error error
-			}{nil, ErrOutOfRange}
-			return
+			}{nil, err}
 		}
-		if i > -1 {
-			fetch(x[i], path[1:], ch)
-			return
-		}
-		for _, n := range x {
-			fetch(n, path[1:], ch)
+		nq := query[1:]
+		for _, n := range x[low:high] {
+			fetch(n, nq, ch)
 		}
 	case string:
 		if l != 0 {
@@ -97,12 +97,6 @@ func fetch(m interface{}, path []string, ch chan<- struct {
 			}{nil, ErrNotFound}
 			return
 		}
-		ch <- struct {
-			Value interface{}
-			Error error
-		}{x, nil}
-	default:
-		panic(fmt.Sprintf("consider type %T", x))
 	}
 }
 
@@ -114,31 +108,39 @@ func takeSquareBracket(s string) (name, square string) {
 	return s[:i], s[i:]
 }
 
-func index(a []interface{}, s string) (int, bool) {
-	if s == "[*]" {
-		return -1, true
+func slice(a []interface{}, square string) (low, high int, err error) {
+	if square == "[:]" {
+		return 0, len(a), nil
 	}
-	l := len(s) - 1
-	if s[0] != '[' && s[l] != ']' {
-		return 0, false
+	s := square[1 : len(square)-1]
+	t := strings.Split(s, ":")
+	if len(t) == 2 {
+		low, err := strconv.Atoi(t[0])
+		if err != nil {
+			return 0, 0, ErrParse(square, err)
+		}
+		high, err := strconv.Atoi(t[1])
+		if err != nil {
+			return 0, 0, ErrParse(square, err)
+		}
+		return low, high, nil
 	}
+	s = t[0]
 	fromEnd := false
-	if s[1] == '^' {
+	if s[0] == '^' {
 		fromEnd = true
-		s = s[2:l]
-	} else {
-		s = s[1:l]
+		s = s[1:]
 	}
 	i, err := strconv.Atoi(s)
 	if err != nil {
-		return 0, false
+		return 0, 0, ErrParse(square, err)
 	}
 	al := len(a)
 	if fromEnd {
 		i = al - i
 	}
 	if i < 0 || i >= al {
-		return 0, false
+		return 0, 0, ErrOutOfRange(square, al)
 	}
-	return i, true
+	return i, i + 1, nil
 }
