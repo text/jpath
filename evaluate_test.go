@@ -124,6 +124,8 @@ func TestFetch(t *testing.T) {
 			expectError  error
 		}{
 			{`["foo", "bar", "baz", "pub"]`, "[1:3]", okOut("bar", "baz"), nil},
+			{`["foo", "bar", "baz", "pub"]`, "[1:]", okOut("bar", "baz", "pub"), nil},
+			{`["foo", "bar", "baz", "pub"]`, "[:3]", okOut("foo", "bar", "baz"), nil},
 		} {
 			r := strings.NewReader(tc.in)
 			ch, err := jpath.Evaluate(tc.expression, r)

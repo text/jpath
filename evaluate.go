@@ -115,11 +115,11 @@ func slice(a []interface{}, square string) (low, high int, err error) {
 	s := square[1 : len(square)-1]
 	t := strings.Split(s, ":")
 	if len(t) == 2 {
-		low, err := strconv.Atoi(t[0])
+		low, err := parseWithDefault(t[0], 0)
 		if err != nil {
 			return 0, 0, ErrParse(square, err)
 		}
-		high, err := strconv.Atoi(t[1])
+		high, err := parseWithDefault(t[1], len(a))
 		if err != nil {
 			return 0, 0, ErrParse(square, err)
 		}
@@ -143,4 +143,12 @@ func slice(a []interface{}, square string) (low, high int, err error) {
 		return 0, 0, ErrOutOfRange(square, al)
 	}
 	return i, i + 1, nil
+}
+
+func parseWithDefault(s string, d int) (int, error) {
+	if s == "" {
+		return d, nil
+	}
+	n, err := strconv.Atoi(s)
+	return n, err
 }
